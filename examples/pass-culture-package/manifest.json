@@ -14,7 +14,8 @@
         "type": "object",
         "properties": {
           "date_naissance": { "type": ["string", "null"], "title": "Date de naissance", "franceconnect": "$default.birthdate" },
-          "address": { "type": ["string", "null"], "title": "Adresse", "franceconnect": "$default.address" }
+          "address": { "type": ["string", "null"], "title": "Adresse", "franceconnect": "$default.address" },
+          "quotient_familial" : { "type": "integer", "title": "Quotient familial", "apiparticulier": "$default.quotient_familial" }
         }
       },
       "context": {
@@ -54,7 +55,8 @@
   "sample_inputs": {
     "data": {
       "date_naissance": "2007-06-15",
-      "departement": "75"
+      "departement": "75",
+      "quotient_familial": 1200
     },
     "context": {
       "date_evaluation": "2025-06-16T00:00:00",
