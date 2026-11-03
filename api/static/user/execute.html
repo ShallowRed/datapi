@@ -183,7 +183,7 @@ function buildForm() {
   const GROUP_INFO = {
     data: {
       label: 'Vos données',
-      description: 'Données utilisées pour le calcul. Les champs provenant de France Connect sont pré-remplis.'
+      description: 'Données utilisées pour le calcul. Les champs provenant de France Connect ou d\'API Particulier sont pré-remplis.'
     },
     context: {
       label: 'Contexte de la règle',
@@ -246,8 +246,15 @@ function createFieldGroup(field) {
   // Status badge
   const status = document.createElement('span');
   if (field.has_fc_value) {
-    status.className = 'field-status fc-filled';
-    status.innerHTML = 'Donnée récupérée : France Connect';
+    if (field.source === 'apiparticulier') {
+      status.className = 'field-status apipart-filled';
+      status.textContent = field.provider
+        ? `Donnée récupérée : API Particulier (${field.provider})`
+        : 'Donnée récupérée : API Particulier';
+    } else {
+      status.className = 'field-status fc-filled';
+      status.textContent = 'Donnée récupérée : France Connect';
+    }
   } else if (field.mapping != null && !field.consented && field.required) {
     // FC-mapped field without value yet: consent may be needed
     status.className = 'field-status consent-required';

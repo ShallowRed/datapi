@@ -37,6 +37,9 @@
       <button class="refresh-btn" id="refresh-pivot">↻ Rafraîchir</button>
     </div>
     <div id="pivot-data">Chargement des données...</div>
+    <br>
+      <h2>Mes autres données</h2>
+    <div id="apipart-data">Chargement des données...</div>
   </section>
 
   <!-- Right content: Algorithms -->
@@ -110,6 +113,62 @@ async function loadPivotData() {
     $('user-name').textContent = fullName;
     $('user-email').textContent = email || 'Aucun email';
     
+  } catch (e) {
+    container.innerHTML = `<p class="empty-state">Erreur: ${e.message}</p>`;
+  }
+}
+
+// Load API Particulier data (quotient familial, fetched at FC login)
+async function loadApipartData() {
+  const container = $('apipart-data');
+  try {
+    const data = await apiGet('/user/apiparticulier');
+    const apipart = data.apiparticulier;
+
+    if (!apipart) {
+      container.innerHTML = '<p class="empty-state">Aucune donnée API Particulier disponible</p>';
+      return;
+    }
+
+    const qf = (apipart.data && apipart.data.quotient_familial) || {};
+    const allocataires = (apipart.data && apipart.data.allocataires) || [];
+    const enfants = (apipart.data && apipart.data.enfants) || [];
+    const adresse = apipart.data && apipart.data.adresse;
+
+    const fields = {
+      'quotient familial': qf.valeur,
+      'période': qf.annee && qf.mois ? `${String(qf.mois).padStart(2, '0')}/${qf.annee}` : null,
+      'fournisseur': qf.fournisseur,
+      'allocataires': allocataires.length > 0
+        ? allocataires.map(a => [a.prenoms, a.nom_naissance].filter(Boolean).join(' ')).join(', ')
+        : null,
+      'enfants': enfants.length > 0 ? String(enfants.length) : null,
+      'adresse': adresse ? [adresse.numero_libelle_voie, adresse.code_postal_ville, adresse.pays].filter(Boolean).join(', ') : null
+    };
+
+    const grid = document.createElement('div');
+    grid.className = 'pivot-grid';
+
+    for (const [key, value] of Object.entries(fields)) {
+      const item = document.createElement('div');
+      item.className = 'pivot-item';
+
+      const label = document.createElement('span');
+      label.className = 'pivot-label';
+      label.textContent = key;
+
+      const val = document.createElement('span');
+      val.className = 'pivot-value' + (value === null || value === undefined ? ' empty' : '');
+      val.textContent = value !== null && value !== undefined ? String(value) : '—';
+
+      item.appendChild(label);
+      item.appendChild(val);
+      grid.appendChild(item);
+    }
+
+    container.innerHTML = '';
+    container.appendChild(grid);
+
   } catch (e) {
     container.innerHTML = `<p class="empty-state">Erreur: ${e.message}</p>`;
   }
@@ -218,11 +277,13 @@ $('refresh-pivot').onclick = () => {
 
 // Initial load
 loadPivotData();
+loadApipartData();
 loadAlgorithms();
 
 // Refresh every 5 minutes
 setInterval(() => {
   loadPivotData();
+  loadApipartData();
   loadAlgorithms();
 }, 5 * 60 * 1000);
 </script>
