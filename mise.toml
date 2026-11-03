@@ -1,12 +1,13 @@
 [env]
 DATABASE_URL="postgresql://datapi:datapi@postgres:5432/datapi"
 AUTH_TOKEN="test-token"
-FRANCECONNECT_CLIENT_ID=""
-FRANCECONNECT_CLIENT_SECRET=""
+FRANCECONNECT_CLIENT_ID="${FRANCECONNECT_CLIENT_ID}"
+FRANCECONNECT_CLIENT_SECRET="${FRANCECONNECT_CLIENT_SECRET}"
 FC_AUTHORIZATION_URL="https://fcp-low.sbx.dev-franceconnect.fr/api/v2/authorize"
 FC_TOKEN_URL="https://fcp-low.sbx.dev-franceconnect.fr/api/v2/token"
 FC_USERINFO_URL="https://fcp-low.sbx.dev-franceconnect.fr/api/v2/userinfo"  
 FC_REDIRECT_URI="http://localhost:8000/user/auth/fc/callback"
+API_PARTICULIER_BASE_URL="https://staging.particulier.api.gouv.fr"
 SESSION_COOKIE_SECURE="false"
 
 [tools]

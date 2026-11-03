@@ -2,6 +2,7 @@ import json
 import os
 import secrets
 import uuid
+from urllib.parse import urlencode
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Header, Request, Depends, Response, Query
@@ -15,6 +16,7 @@ from catalog.manifest_loader import enrich_with_pyproject_text, flatten_package_
 from catalog.jsonld_converter import manifest_to_jsonld
 from user.fc_mapping import FCMappingEngine, get_fc_mapping_engine, extract_mappings
 from user.fc_client import exchange_code, fetch_userinfo
+from user.apipart_client import fetch_quotient_familial, APIPartClientError
 
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "test-token")
 
@@ -46,11 +48,10 @@ MANIFEST_STORE = {}
 FC_SESSION_STORE: Dict[str, Dict[str, Any]] = {}  # session_id -> session_data
 FC_USER_STORE: Dict[str, Dict[str, Any]] = {}  # user_id (sub) -> user_data + consent
 
-# France Connect configuration
 FC_CONFIG = {
     "authorization_url": os.getenv(
         "FC_AUTHORIZATION_URL",
-        "ttps://fcp-low.sbx.dev-franceconnect.fr/api/v2/authorize"
+        "https://fcp-low.sbx.dev-franceconnect.fr/api/v2/authorize"
     ),
     "token_url": os.getenv(
         "FC_TOKEN_URL",
@@ -66,7 +67,20 @@ FC_CONFIG = {
         "FC_REDIRECT_URI",
         "http://localhost:8000/user/auth/fc/callback"
     ),
-    "scopes": ["openid", "profile", "email", "address", "phone"],
+    # Scopes valides en mode intégration FC : scopes individuels uniquement
+    # (les scopes agrégés "profile", "address", "phone" ne sont pas proposés
+    # par FranceConnect, cf. docs partenaires FC "Accès aux données à l'aide
+    # des scopes").
+    "scopes": ["openid", "given_name", "family_name", "gender", "birthdate", "email"],
+}
+
+APIPART_CONFIG = {
+    "base_url": os.getenv(
+        "API_PARTICULIER_BASE_URL",
+        "https://staging.particulier.api.gouv.fr"
+    ),
+    # SIRET du "client final" (exemples de la doc : DINUM en staging)
+    "recipient": os.getenv("API_PARTICULIER_RECIPIENT", "13002526500013"),
 }
 
 # Session configuration
@@ -157,6 +171,26 @@ def get_user_from_session(session: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not user_id:
         return None
     return FC_USER_STORE.get(user_id)
+
+
+def extract_apipart_provider(payload: Any) -> Optional[str]:
+    """
+    Extract the data provider name (e.g. "CNAF") from an API Particulier
+    payload: v3 responses carry a "fournisseur" key inside their data block.
+    """
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key == "fournisseur" and isinstance(value, str) and value:
+                return value
+            found = extract_apipart_provider(value)
+            if found:
+                return found
+    elif isinstance(payload, list):
+        for item in payload:
+            found = extract_apipart_provider(item)
+            if found:
+                return found
+    return None
 
 
 def require_user_session(request: Request) -> Dict[str, Any]:
@@ -301,9 +335,6 @@ def fc_login(request: Request):
     # Generate state token for CSRF protection
     state = generate_state()
     
-    # Store state in session (simplified for POC - in prod, use proper session store)
-    # For now, we'll pass it as a query parameter and verify in callback
-    
     # Build authorization URL
     auth_url = FC_CONFIG["authorization_url"]
     params = {
@@ -316,16 +347,15 @@ def fc_login(request: Request):
         "acr_values": "eidas1",  # Level of assurance
     }
     
-    # Construct query string
-    query_string = "&".join(f"{k}={v}" for k, v in params.items())
+    query_string = urlencode(params)
     return RedirectResponse(url=f"{auth_url}?{query_string}")
 
 
 @app.get("/user/auth/fc/callback")
 async def fc_callback(
     request: Request,
-    code: str = Query(...),
-    state: str = Query(...),
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
     error_description: Optional[str] = Query(None)
 ):
@@ -337,6 +367,11 @@ async def fc_callback(
         return JSONResponse(
             status_code=400,
             content={"error": error, "error_description": error_description}
+        )
+    if code is None or state is None:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "invalid_callback", "error_description": "missing 'code' or 'state' parameter"}
         )
     
     # TODO: Validate state token (CSRF protection) - for POC, we skip
@@ -350,11 +385,12 @@ async def fc_callback(
         session_id = generate_session_id()
         now = datetime.now()
         expires_at = now + timedelta(seconds=SESSION_CONFIG["cookie_max_age"])
-        
+
+        # Sauvegarder le token
         session_data = {
             "session_id": session_id,
             "user_id": claims["sub"],
-            "access_token": f"mock_token_{secrets.token_hex(16)}",
+            "access_token": token_data,
             "id_token": f"mock_id_token_{secrets.token_hex(16)}",
             "claims": claims,
             "created_at": now.isoformat(),
@@ -385,7 +421,20 @@ async def fc_callback(
             secure=SESSION_CONFIG["cookie_secure"],
             samesite="lax"
         )
-        
+
+        # Surcharge POC : en staging, un faux jeton FranceConnect déclenche la
+        # fixture QF (identité "Georges CNAF") — cf. datagouv/apistration,
+        # mocks/payloads/france_connect/cnaf_qfv2.yml. En flux réel (ou avec
+        # un vrai jeton FC sandbox portant les scopes cnaf_*), utiliser
+        # token_data["access_token"] à la place.
+        fc_access_token_apipart = "cnaf_qfv2"
+        try:
+            session_data["apiparticulier"] = await fetch_quotient_familial(
+                APIPART_CONFIG, fc_access_token_apipart
+            )
+        except APIPartClientError as e:
+            print(f"API Particulier fetch failed: {e}")
+            session_data["apiparticulier"] = None
         return response
         
     except Exception as e:
@@ -422,6 +471,18 @@ def get_user_pivot(session: Dict[str, Any] = Depends(require_user_session)):
     return {
         "status": "ok",
         "pivot_data": pivot_data
+    }
+
+
+@app.get("/user/apiparticulier")
+def get_user_apiparticulier(session: Dict[str, Any] = Depends(require_user_session)):
+    """
+    Get the API Particulier data for the current user.
+    Fetched at FC login (France Connect modality) and stored in the session.
+    """
+    return {
+        "status": "ok",
+        "apiparticulier": session.get("apiparticulier")
     }
 
 
@@ -477,11 +538,23 @@ def get_user_manifest(
     if not manifest:
         raise HTTPException(status_code=404, detail="Algorithm not found")
     
-    # Get user's FC claims
-    claims = session.get("claims", {})
+    # Merged user data: FC claims + API Particulier payload. The mapping
+    # engine resolves "franceconnect" mappings against the claims and
+    # "apiparticulier" mappings against the "apiparticulier" entry.
+    claims = {
+        **session.get("claims", {}),
+        "apiparticulier": session.get("apiparticulier"),
+    }
     
     # Get field metadata using the mapping engine
     field_metadata = fc_mapping_engine.get_field_metadata(claims, manifest)
+    
+    # Label API Particulier-mapped fields with the data provider (e.g. CNAF)
+    apipart_provider = extract_apipart_provider(session.get("apiparticulier"))
+    if apipart_provider:
+        for field in field_metadata:
+            if field.get("source") == "apiparticulier":
+                field["provider"] = apipart_provider
     
     # Check user consent for this algorithm
     user_id = session.get("user_id")
@@ -568,8 +641,13 @@ async def user_execute(
     if not manifest:
         raise HTTPException(status_code=404, detail="Algorithm not found")
     
-    # Get user's FC claims
-    claims = session.get("claims", {})
+    # Merged user data: FC claims + API Particulier payload. The mapping
+    # engine resolves "franceconnect" mappings against the claims and
+    # "apiparticulier" mappings against the "apiparticulier" entry.
+    claims = {
+        **session.get("claims", {}),
+        "apiparticulier": session.get("apiparticulier"),
+    }
     
     # Get user consent for this algorithm
     user_id = session.get("user_id")
