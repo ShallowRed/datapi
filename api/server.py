@@ -335,6 +335,7 @@ def get_public_algorithm(manifest_id: str):
         "record": manifest.get("record"),
         **describe(manifest, REGISTRY_RECORDS),
         "input_schema": manifest["input_schema"],
+        "output_schema": manifest.get("output_schema", {}),
     }
 
 

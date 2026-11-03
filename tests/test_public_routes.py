@@ -20,6 +20,7 @@ def test_reads_and_executes_a_public_algorithm_without_token():
     register(MANIFEST)
     algorithm = client.get("/public/catalog/civique-droit-vote").json()
     assert algorithm["input_schema"] == MANIFEST["input_schema"]
+    assert algorithm["output_schema"] == MANIFEST["output_schema"]
     result = client.post("/public/execute/civique-droit-vote", json=ELIGIBLE).json()
     assert result["status"] == "success"
     assert result["output"]["value"] is True
