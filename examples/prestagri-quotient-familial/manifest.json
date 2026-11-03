@@ -62,11 +62,13 @@
                     "data": "revenu fiscal de référence",
                     "endpoint": "/situations/ir/assiettes/annrev/{annrev}",
                     "correctable": true
-                  }
+                  },
+                  "minimum": 0
                 },
                 "nombre_personnes": {
                   "type": "integer",
-                  "title": "Nombre de personnes"
+                  "title": "Nombre de personnes",
+                  "minimum": 1
                 }
               },
               "additionalProperties": false,
@@ -77,7 +79,8 @@
         },
         "additionalProperties": false,
         "x-legal-basis": {
-          "title": "Note de service, page 8"
+          "title": "Note de service SG/SRH/SDDPRS/2025-303 du 14 mai 2025, page 8",
+          "url": "https://info.agriculture.gouv.fr/boagri/instruction-2025-303"
         }
       }
     },
