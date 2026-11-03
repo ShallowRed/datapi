@@ -1,0 +1,29 @@
+# API Particulier Mapping Configuration
+#
+# Default mappings from API Particulier payloads to standardized field names,
+# referenced from manifests via the "$default.<name>" syntax on input_schema
+# properties carrying the "apiparticulier" keyword.
+#
+# Paths are resolved against the API Particulier response payload, e.g. the
+# v3 quotient familial (France Connect modality) response:
+#
+#   {"data": {"quotient_familial": {"fournisseur": "CNAF", "valeur": 2550,
+#            "annee": 2024, "mois": 2, "annee_calcul": 2024, "mois_calcul": 12},
+#            "allocataires": [{"prenoms": "GEORGES", "nom_naissance": "CNAF", ...}],
+#            "enfants": [],
+#            "adresse": {"numero_libelle_voie": "...", "code_postal_ville": "..."}},
+#    "links": {}, "meta": {}}
+
+default_mappings:
+  # --- Quotient familial (CAF & MSA) ---
+  quotient_familial: data.quotient_familial.valeur
+  quotient_familial_fournisseur: data.quotient_familial.fournisseur
+  quotient_familial_annee: data.quotient_familial.annee
+  quotient_familial_mois: data.quotient_familial.mois
+  quotient_familial_annee_calcul: data.quotient_familial.annee_calcul
+  quotient_familial_mois_calcul: data.quotient_familial.mois_calcul
+
+  # --- Composition familiale ---
+  allocataires: data.allocataires
+  enfants: data.enfants
+  adresse: data.adresse

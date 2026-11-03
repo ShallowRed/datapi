@@ -40,8 +40,6 @@ Usage:
     )
 """
 
-import json
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Callable
 import yaml
@@ -62,27 +60,29 @@ class InvalidMappingError(FCMappingError):
     pass
 
 
-# JSON Schema keyword, on each input_schema property, declaring its France
-# Connect mapping. Unknown to JSON Schema validators, which simply ignore it.
+# JSON Schema keywords, on each input_schema property, declaring its data
+# source mapping. Unknown to JSON Schema validators, which simply ignore them.
 FC_MAPPING_KEYWORD = "franceconnect"
+AP_MAPPING_KEYWORD = "apiparticulier"
+MAPPING_KEYWORDS = (FC_MAPPING_KEYWORD, AP_MAPPING_KEYWORD)
 
-
-def extract_mappings(input_schema: Dict[str, Any]) -> Dict[str, Any]:
+def extract_mappings(input_schema: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     """
-    Collect the France Connect mappings declared inside an input_schema.
+    Collect the source mappings declared inside an input_schema.
 
     Walks the schema's ``properties`` recursively and returns a dict keyed by
-    dotted property path (e.g. ``data.date_naissance``), whose values are the
-    property's ``franceconnect`` mapping. Properties without the keyword are
-    skipped — they are never prefilled from France Connect.
+    dotted property path (e.g. ``data.date_naissance``), whose values are
+    ``{"keyword": ..., "mapping": ...}`` — the keyword identifies the data
+    source (``franceconnect`` or ``apiparticulier``). Properties without a
+    mapping keyword are skipped — they are never prefilled.
 
     Args:
         input_schema: The manifest's input_schema
 
     Returns:
-        Dict of {dotted_path: mapping_config}
+        Dict of {dotted_path: {"keyword": keyword, "mapping": mapping_config}}
     """
-    mappings: Dict[str, Any] = {}
+    mappings: Dict[str, Dict[str, Any]] = {}
 
     def _walk(schema: Any, prefix: str) -> None:
         if not isinstance(schema, dict):
@@ -90,8 +90,9 @@ def extract_mappings(input_schema: Dict[str, Any]) -> Dict[str, Any]:
         for name, prop in (schema.get("properties") or {}).items():
             path = f"{prefix}.{name}" if prefix else name
             if isinstance(prop, dict):
-                if FC_MAPPING_KEYWORD in prop:
-                    mappings[path] = prop[FC_MAPPING_KEYWORD]
+                for keyword in MAPPING_KEYWORDS:
+                    if keyword in prop:
+                        mappings[path] = {"keyword": keyword, "mapping": prop[keyword]}
                 _walk(prop, path)
 
     _walk(input_schema, "")
@@ -110,6 +111,7 @@ class FCMappingEngine:
     """
     
     DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "franceconnect_mapping.yaml"
+    AP_CONFIG_PATH = Path(__file__).parent.parent / "config" / "apiparticulier_mapping.yaml"
     
     def __init__(self, config_path: Optional[str] = None):
         """
@@ -122,9 +124,19 @@ class FCMappingEngine:
         self._config: Optional[Dict[str, Any]] = None
         self._transforms: Optional[Dict[str, Callable]] = None
         self._default_mappings: Optional[Dict[str, Any]] = None
+        # API Particulier default mappings (loaded if the config file exists)
+        self._ap_default_mappings: Dict[str, Any] = {}
         
         # Load configuration
         self._load_config()
+        self._load_ap_config()
+
+    def _load_ap_config(self) -> None:
+        """Load API Particulier default mappings from their YAML config file."""
+        if not self.AP_CONFIG_PATH.exists():
+            return
+        with open(self.AP_CONFIG_PATH, "r") as f:
+            self._ap_default_mappings = (yaml.safe_load(f) or {}).get("default_mappings", {})
         
     def _load_config(self) -> None:
         """Load and parse the YAML configuration file."""
@@ -208,48 +220,58 @@ class FCMappingEngine:
         return current
    
     
+    def _defaults_for(self, keyword: str) -> Dict[str, Any]:
+        """Return the default mappings table for a source keyword."""
+        if keyword == AP_MAPPING_KEYWORD:
+            return self._ap_default_mappings
+        return self._default_mappings or {}
+
     def _parse_mapping_value(
-        self, 
+        self,
         value: Any,
-        fc_claims: Dict[str, Any]
+        fc_claims: Dict[str, Any],
+        keyword: str = FC_MAPPING_KEYWORD
     ) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
         """
         Parse a mapping value which can be:
-        - A string (FC path or default reference)
+        - A string (source path or default reference)
         - null (manual input required)
         - An object with source, transform, etc.
-        
+
         Returns:
-            Tuple of (fc_path_or_none, extended_config_or_none)
+            Tuple of (source_path_or_none, extended_config_or_none)
         """
         if value is None:
             return None, None
-        
+
         if isinstance(value, str):
             # Check if it's a default mapping reference
             if value.startswith("$default."):
                 default_key = value[9:]  # Remove "$default."
-                if default_key in self._default_mappings:
+                defaults = self._defaults_for(keyword)
+                if default_key in defaults:
                     # Recursively parse the default mapping
                     return self._parse_mapping_value(
-                        self._default_mappings[default_key],
-                        fc_claims
+                        defaults[default_key],
+                        fc_claims,
+                        keyword
                     )
                 else:
                     raise InvalidMappingError(
                         f"Default mapping '{default_key}' not found"
                     )
-            # Otherwise it's a direct FC path
+            # Otherwise it's a direct source path
             return value, None
-        
+
         if isinstance(value, dict):
             # Extended mapping configuration
             source = value.get("source")
             if source and isinstance(source, str):
                 if source.startswith("$default."):
                     default_key = source[9:]
-                    if default_key in self._default_mappings:
-                        source = self._default_mappings[default_key]
+                    defaults = self._defaults_for(keyword)
+                    if default_key in defaults:
+                        source = defaults[default_key]
                         if isinstance(source, str):
                             return source, value
                         elif isinstance(source, dict):
@@ -260,36 +282,46 @@ class FCMappingEngine:
                             return merged.get("source"), merged
                 return source, value
             return None, value
-        
+
         return None, None
-    
+
     def _get_mapping_value(
         self,
         mapping_config: Any,
-        fc_claims: Dict[str, Any]
+        fc_claims: Dict[str, Any],
+        keyword: str = FC_MAPPING_KEYWORD
     ) -> Tuple[Any, Optional[Dict[str, Any]]]:
         """
-        Get the value from FC claims based on a mapping configuration.
-        
+        Get the value from user data based on a mapping configuration.
+
+        The claims dict is the merged user data: FC claims at the top level,
+        and the API Particulier payload under the ``apiparticulier`` key. A
+        mapping's path is resolved against its source's root: the whole
+        claims for ``franceconnect``, the ``apiparticulier`` entry for
+        ``apiparticulier``.
+
         Returns:
             Tuple of (resolved_value, extended_config)
         """
-        fc_path, extended_config = self._parse_mapping_value(mapping_config, fc_claims)
-        
-        if fc_path is None:
+        source_path, extended_config = self._parse_mapping_value(mapping_config, fc_claims, keyword)
+
+        if source_path is None:
             return None, extended_config
-        
-        # Resolve the FC path
-        raw_value = self._resolve_fc_path(fc_claims, fc_path)
-        
+
+        # Resolve the path against the source's root data
+        root = fc_claims
+        if keyword == AP_MAPPING_KEYWORD:
+            root = fc_claims.get("apiparticulier") or {}
+        raw_value = self._resolve_fc_path(root, source_path)
+
         if raw_value is None:
             return None, extended_config
-        
+
         # Apply transform if specified
         if extended_config and "transform" in extended_config:
             transform_name = extended_config["transform"]
             # raw_value = self._apply_transform(raw_value, transform_name)
-        
+
         return raw_value, extended_config
     
     def _set_nested_value(
@@ -417,9 +449,11 @@ class FCMappingEngine:
         effective_mappings = extract_mappings(manifest.get("input_schema", {}))
         
         # Process each mapping
-        for input_path, mapping_config in effective_mappings.items():
-            # Parse the mapping
-            value, extended_config = self._get_mapping_value(mapping_config, fc_claims)
+        for input_path, mapping_entry in effective_mappings.items():
+            # Parse the mapping (source-aware: FC or API Particulier)
+            value, extended_config = self._get_mapping_value(
+                mapping_entry["mapping"], fc_claims, mapping_entry["keyword"]
+            )
             
             # Get schema info for this field (if available)
             input_schema = manifest.get("input_schema", {})
@@ -513,10 +547,16 @@ class FCMappingEngine:
                     _walk(prop, path, prop.get("required") or [])
                     continue
 
-                mapping_config = prop.get(FC_MAPPING_KEYWORD)
+                mapping_keyword = next(
+                    (kw for kw in MAPPING_KEYWORDS if prop.get(kw) is not None),
+                    None
+                )
+                mapping_config = prop.get(mapping_keyword) if mapping_keyword else None
 
                 if mapping_config is not None:
-                    value, extended_config = self._get_mapping_value(mapping_config, fc_claims)
+                    value, extended_config = self._get_mapping_value(
+                        mapping_config, fc_claims, mapping_keyword
+                    )
                     has_fc_value = value is not None
                     default = extended_config.get("default") if extended_config else None
                 else:
@@ -529,6 +569,7 @@ class FCMappingEngine:
                     "path": path,
                     "value": value,
                     "has_fc_value": has_fc_value,
+                    "source": mapping_keyword,
                     "schema": prop,
                     "label": (
                         (extended_config or {}).get("label")
@@ -578,7 +619,9 @@ class FCMappingEngine:
         mappings = extract_mappings(manifest.get("input_schema", {}))
 
         # Check each mapping value
-        for path, value in mappings.items():
+        for path, entry in mappings.items():
+            keyword = entry["keyword"]
+            value = entry["mapping"]
             if value is None:
                 continue  # Valid: manual input
 
@@ -586,9 +629,9 @@ class FCMappingEngine:
                 # Check if it references a default mapping
                 if value.startswith("$default."):
                     default_key = value[9:]
-                    if default_key not in self._default_mappings:
+                    if default_key not in self._defaults_for(keyword):
                         errors.append(f"Property '{path}' references unknown default '{default_key}'")
-                # Otherwise it's an FC path - we can't validate it exists here
+                # Otherwise it's a source path - we can't validate it exists here
             elif isinstance(value, dict):
                 # Extended mapping
                 if "transform" in value:
