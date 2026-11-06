@@ -542,6 +542,20 @@ valeur par variable saisie. `POST /catalog/infer-schema` avec cet
 `entrypoint` rend `input_schema` et `output_schema`, tirés des types et des
 libellés des variables.
 
+Une variable mensuelle saisie sur l'année glissante, les douze mois qui
+précèdent le mois du calcul, figure aussi dans `rolling_year_inputs`. L'entrée
+reçoit le total de ces douze mois, qu'OpenFisca répartit sur chaque mois :
+
+```json
+"entrypoint": {
+  "type": "openfisca:variables",
+  "target": "openfisca_france",
+  "outputs": ["ppa"],
+  "inputs": ["salaire_imposable"],
+  "rolling_year_inputs": ["salaire_imposable"]
+}
+```
+
 ## Enregistrer et exécuter (commun à tous les langages)
 
 Une fois le manifeste écrit et testé en local via l'adapter, l'enregistrement

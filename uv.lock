@@ -372,7 +372,7 @@ dev = [
 requires-dist = [
     { name = "authlib", specifier = "==1.2.0" },
     { name = "engine-catala", git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=engines%2Fcatala&rev=5f251cfee251c49eb69277396bd1f0d44b585b7e" },
-    { name = "engine-openfisca", git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=engines%2Fopenfisca&rev=11874e048abf6c0799192786be178afb7103260e" },
+    { name = "engine-openfisca", git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=engines%2Fopenfisca&rev=51438717d3681afba76395c072c20c489bb522f2" },
     { name = "fastapi", extras = ["all"], specifier = "==0.141.1" },
     { name = "jsonschema", specifier = "==4.26.0" },
     { name = "openfisca-france", specifier = "==175.1.4" },
@@ -439,7 +439,7 @@ source = { git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=e
 [[package]]
 name = "engine-openfisca"
 version = "0.1.0"
-source = { git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=engines%2Fopenfisca&rev=11874e048abf6c0799192786be178afb7103260e#11874e048abf6c0799192786be178afb7103260e" }
+source = { git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=engines%2Fopenfisca&rev=51438717d3681afba76395c072c20c489bb522f2#51438717d3681afba76395c072c20c489bb522f2" }
 dependencies = [
     { name = "openfisca-core" },
 ]

@@ -12,6 +12,8 @@ Manifest conventions expected by this adapter:
   entrypoint.target    = the module of the system, such as "openfisca_france"
   entrypoint.outputs   = the computed variables, such as ["pass_culture"]
   entrypoint.inputs    = the variables read from the inputs, such as ["date_naissance"]
+  entrypoint.rolling_year_inputs = optional, the inputs that receive the total of the twelve months
+                                   before the month of the calculation, such as ["salaire_imposable"]
 """
 import time
 import traceback
@@ -27,6 +29,7 @@ def openfisca_rule(entrypoint: Dict[str, Any]) -> engine_openfisca.OpenfiscaRule
         system=entrypoint["target"],
         outputs=tuple(entrypoint.get("outputs", [])),
         inputs=tuple(entrypoint.get("inputs", [])),
+        rolling_year_inputs=tuple(entrypoint.get("rolling_year_inputs", [])),
     )
 
 
