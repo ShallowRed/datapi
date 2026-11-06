@@ -337,6 +337,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
+    { name = "engine-catala" },
     { name = "fastapi", extra = ["all"] },
     { name = "jsonschema" },
     { name = "pass-culture-rules" },
@@ -359,6 +360,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "authlib", specifier = "==1.2.0" },
+    { name = "engine-catala", git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=engines%2Fcatala&rev=5f251cfee251c49eb69277396bd1f0d44b585b7e" },
     { name = "fastapi", extras = ["all"], specifier = "==0.141.1" },
     { name = "jsonschema", specifier = "==4.26.0" },
     { name = "pass-culture-rules", editable = "examples/pass-culture-package" },
@@ -406,6 +408,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/f5/22/900cb125c76b7aaa4
 wheels = [
     { url = "https://files.pythonhosted.org/packages/de/15/545e2b6cf2e3be84bc1ed85613edd75b8aea69807a71c26f4ca6a9258e82/email_validator-2.3.0-py3-none-any.whl", hash = "sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4", size = 35604, upload-time = "2025-08-26T13:09:05.858Z" },
 ]
+
+[[package]]
+name = "engine-catala"
+version = "0.1.0"
+source = { git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=engines%2Fcatala&rev=5f251cfee251c49eb69277396bd1f0d44b585b7e#5f251cfee251c49eb69277396bd1f0d44b585b7e" }
 
 [[package]]
 name = "fastapi"
