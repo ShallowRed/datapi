@@ -13,6 +13,7 @@ from jsonschema import validate, ValidationError
 from pydantic import BaseModel
 from adapters.python_adapter import PythonAdapter
 from adapters.catala_adapter import CatalaAdapter
+from adapters.openfisca_adapter import OpenfiscaAdapter
 from catalog.manifest_loader import enrich_with_pyproject_text, flatten_package_manifest
 from catalog.registry_records import describe, load_registry_records
 from catalog.jsonld_converter import manifest_to_jsonld
@@ -41,6 +42,7 @@ if os.path.exists(USER_STATIC_DIR):
 ADAPTERS = {
     "python": PythonAdapter,
     "catala": CatalaAdapter,
+    "openfisca": OpenfiscaAdapter,
 }
 
 # Simple in-memory manifest store for POC (replace with Postgres for prod)
@@ -246,9 +248,14 @@ def manifest_schema():
 @app.post("/catalog/infer-schema")
 def infer_schema(entrypoint: dict, token: str = Depends(require_auth)):
     # helper for the /admin console: generate input_schema/output_schema from the
-    # compiled Catala module's own type hints, instead of hand-transcribing them.
+    # compiled Catala module's own type hints, or from the variables of an OpenFisca system.
+    if entrypoint.get("type") == "openfisca:variables":
+        try:
+            return OpenfiscaAdapter().infer_manifest_schemas(entrypoint)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
     if entrypoint.get("type") != "catala:scope":
-        raise HTTPException(status_code=400, detail="schema inference only supported for entrypoint.type 'catala:scope'")
+        raise HTTPException(status_code=400, detail="schema inference only supported for entrypoint.type 'catala:scope' or 'openfisca:variables'")
     target = entrypoint.get("target")
     if not target:
         raise HTTPException(status_code=400, detail="entrypoint.target required")

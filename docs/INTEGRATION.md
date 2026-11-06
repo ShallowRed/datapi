@@ -18,11 +18,13 @@ flowchart LR
     B --> C{runtime.language}
     C -->|python| D[PythonAdapter]
     C -->|catala| E[CatalaAdapter]
+    C -->|openfisca| G[OpenfiscaAdapter]
     D --> F[POST /catalog/register\nPOST /execute/id]
     E --> F
+    G --> F
 ```
 
-## Le manifeste, commun aux deux langages
+## Le manifeste, commun à tous les langages
 
 Champs requis (voir le schéma complet) :
 
@@ -30,7 +32,7 @@ Champs requis (voir le schéma complet) :
 |---|---|
 | `id` | Identifiant unique dans le catalogue, utilisé dans l'URL `/execute/{id}` |
 | `dct:title`, `description`, `org` | Métadonnées d'affichage |
-| `runtime.language` | `"python"` ou `"catala"` — sélectionne l'adapter (`api/server.py`, dict `ADAPTERS`) |
+| `runtime.language` | `"python"`, `"catala"` ou `"openfisca"` — sélectionne l'adapter (`api/server.py`, dict `ADAPTERS`) |
 | `entrypoint.type` / `entrypoint.target` | Comment charger et appeler le code (détails ci-dessous par langage) |
 | `input_schema` / `output_schema` | JSON Schema. `input_schema` est validé par l'API (`api/server.py`) **et** par l'adapter avant chaque exécution |
 | `resources.timeout_seconds` | Timeout d'exécution passé à l'adapter |
@@ -511,7 +513,36 @@ Une erreur métier levée par le scope Catala lui-même (ex. `NoValue`,
 remontée comme `{"status": "failed", ...}`, distinct de `{"status": "error",
 ...}` réservé aux erreurs d'adapter/infra.
 
-## Enregistrer et exécuter (commun aux deux langages)
+## Intégrer une règle OpenFisca
+
+Adapter : [`adapters/openfisca_adapter.py`](../adapters/openfisca_adapter.py).
+Exemple : [`examples/openfisca-pass-culture/`](../examples/openfisca-pass-culture/manifest.json).
+
+Une règle OpenFisca est un ensemble de variables d'un système socio-fiscal :
+celles qu'on calcule et celles qu'on saisit. Le paquet du pays (par exemple
+`openfisca-france`) est une dépendance de Datapi, à la version que cite la
+fiche du registre. `OpenfiscaAdapter` appelle le paquet
+[`engine-openfisca`](https://github.com/datagouv/regles.data.gouv.fr/tree/main/engines/openfisca)
+du registre, qui calcule la règle pour une personne seule, chaque entité de
+groupe (famille, foyer fiscal, ménage) la contenant seule.
+
+```json
+"runtime": { "language": "openfisca", "version": "175.1.4", "primary": true },
+"entrypoint": {
+  "type": "openfisca:variables",
+  "target": "openfisca_france",
+  "outputs": ["pass_culture"],
+  "inputs": ["date_naissance"]
+}
+```
+
+Les entrées contiennent la période du calcul, `period`, au format d'OpenFisca
+(`2025-04` pour une règle mensuelle, `2025` pour une règle annuelle), et une
+valeur par variable saisie. `POST /catalog/infer-schema` avec cet
+`entrypoint` rend `input_schema` et `output_schema`, tirés des types et des
+libellés des variables.
+
+## Enregistrer et exécuter (commun à tous les langages)
 
 Une fois le manifeste écrit et testé en local via l'adapter, l'enregistrement
 et l'exécution passent par l'API HTTP, avec un header
