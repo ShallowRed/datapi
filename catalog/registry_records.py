@@ -3,7 +3,7 @@ import os
 import urllib.request
 from typing import Any, Dict
 
-REGISTRY_URL = os.environ.get("REGISTRY_URL", "https://datagouv.github.io/regles.data.gouv.fr/registry.json")
+REGISTRY_URL = os.environ.get("REGISTRY_URL", "https://datagouv.github.io/algos.data.gouv.fr/registry.json")
 
 
 def load_registry_records(url: str = REGISTRY_URL) -> Dict[str, Dict[str, Any]]:
