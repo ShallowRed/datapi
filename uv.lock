@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -360,7 +360,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "authlib", specifier = "==1.2.0" },
-    { name = "engine-catala", git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=engines%2Fcatala&rev=5f251cfee251c49eb69277396bd1f0d44b585b7e" },
+    { name = "engine-catala", git = "https://github.com/datagouv/algos.data.gouv.fr?subdirectory=engines%2Fcatala&rev=650ba3b9c39cb74970d7938e30d075bbfdfede52" },
     { name = "fastapi", extras = ["all"], specifier = "==0.141.1" },
     { name = "jsonschema", specifier = "==4.26.0" },
     { name = "pass-culture-rules", editable = "examples/pass-culture-package" },
@@ -412,7 +412,7 @@ wheels = [
 [[package]]
 name = "engine-catala"
 version = "0.1.0"
-source = { git = "https://github.com/datagouv/regles.data.gouv.fr?subdirectory=engines%2Fcatala&rev=5f251cfee251c49eb69277396bd1f0d44b585b7e#5f251cfee251c49eb69277396bd1f0d44b585b7e" }
+source = { git = "https://github.com/datagouv/algos.data.gouv.fr?subdirectory=engines%2Fcatala&rev=650ba3b9c39cb74970d7938e30d075bbfdfede52#650ba3b9c39cb74970d7938e30d075bbfdfede52" }
 
 [[package]]
 name = "fastapi"
