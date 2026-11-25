@@ -10,7 +10,7 @@ def load_registry_records(url: str = REGISTRY_URL) -> Dict[str, Dict[str, Any]]:
     """Read the records published by regles.data.gouv.fr, keyed by record id."""
     with urllib.request.urlopen(url, timeout=10) as response:
         registry = json.load(response)
-    return {record["id"]: record for record in registry["records"]}
+    return {record["@id"]: record for record in registry["records"]}
 
 
 def describe(manifest: Dict[str, Any], records: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
@@ -25,8 +25,8 @@ def describe(manifest: Dict[str, Any], records: Dict[str, Dict[str, Any]]) -> Di
             "version": manifest.get("version", ""),
         }
     return {
-        "title": record["title"]["fr"],
-        "description": record["description"]["fr"],
-        "org": record["competent_authority"],
-        "version": record["version"],
+        "title": record["dct:title"]["fr"],
+        "description": record["dct:description"]["fr"],
+        "org": record["cv:hasCompetentAuthority"]["@id"],
+        "version": record["schema:version"],
     }
