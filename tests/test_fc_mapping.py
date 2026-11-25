@@ -10,12 +10,13 @@ def _load_manifest():
     return json.loads(MANIFEST_PATH.read_text())
 
 
-def test_extract_mappings_reads_franceconnect_keyword_on_properties():
+def test_extract_mappings_reads_the_source_keywords_on_properties():
     manifest = _load_manifest()
     mappings = extract_mappings(manifest["input_schema"])
     assert mappings == {
-        "data.date_naissance": "$default.birthdate",
-        "data.address": "$default.address",
+        "data.date_naissance": {"keyword": "franceconnect", "mapping": "$default.birthdate"},
+        "data.address": {"keyword": "franceconnect", "mapping": "$default.address"},
+        "data.quotient_familial": {"keyword": "apiparticulier", "mapping": "$default.quotient_familial"},
     }
 
 
@@ -36,7 +37,9 @@ def test_extract_mappings_skips_properties_without_keyword():
             },
         },
     }
-    assert extract_mappings(schema) == {"data.date_naissance": "$default.birthdate"}
+    assert extract_mappings(schema) == {
+        "data.date_naissance": {"keyword": "franceconnect", "mapping": "$default.birthdate"},
+    }
 
 
 def test_generate_input_payload_prefills_mapped_fields_from_fc_claims():
@@ -60,7 +63,7 @@ def test_get_field_metadata_covers_data_and_context_with_defaults():
     fields = engine.get_field_metadata(claims, manifest)
 
     # Tous les champs du schéma remontent, dans l'ordre de déclaration
-    assert [f["group"] for f in fields] == ["data", "data", "context", "context"]
+    assert [f["group"] for f in fields] == ["data", "data", "data", "context", "context"]
     by_path = {f["path"]: f for f in fields}
 
     # Champ mappé FC : valeur depuis les claims
