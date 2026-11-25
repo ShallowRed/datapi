@@ -1,5 +1,7 @@
 {
   "id": "prestagri.aide_scolarite",
+  "record": "https://regles.data.gouv.fr/regles/ministere-agriculture/prestagri-aide-scolarite",
+  "public": true,
   "version": "0.1.0",
   "dct:title": "Prestagri",
   "description": "Aides sociales pour les agents du MASA",
