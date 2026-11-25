@@ -14,7 +14,7 @@ def records():
 def test_describes_an_algorithm_from_its_registry_record():
     assert describe(MANIFEST, records()) == {
         "title": "Droit de vote en France",
-        "description": records()[MANIFEST["record"]]["description"]["fr"],
+        "description": records()[MANIFEST["record"]]["dct:description"]["fr"],
         "org": "https://github.com/qloridant/regalgo-civique-droit-vote#organisation",
         "version": "1.0.0",
     }
