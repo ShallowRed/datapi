@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from adapters.python_adapter import PythonAdapter
 from adapters.catala_adapter import CatalaAdapter
 from adapters.openfisca_adapter import OpenfiscaAdapter
-from catalog.manifest_loader import enrich_with_pyproject_text, flatten_package_manifest
+from catalog.manifest_loader import enrich_with_pyproject_text, flatten_package_manifest, load_manifest
 from catalog.registry_records import describe, load_registry_records
 from catalog.jsonld_converter import manifest_to_jsonld
 from user.fc_mapping import FCMappingEngine, get_fc_mapping_engine, extract_mappings
@@ -280,8 +280,7 @@ def enrich_from_pyproject(body: dict, token: str = Depends(require_auth)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"invalid pyproject.toml: {e}")
 
-@app.post("/catalog/register")
-def register_manifest(manifest: dict, token: str = Depends(require_auth)):
+def store_manifest(manifest: dict) -> dict:
     if "algorithms" in manifest:
         entries = flatten_package_manifest(manifest)
         ids = []
@@ -295,6 +294,14 @@ def register_manifest(manifest: dict, token: str = Depends(require_auth)):
         raise HTTPException(status_code=400, detail="manifest.id required")
     MANIFEST_STORE[manifest["id"]] = manifest
     return {"status": "registered", "id": manifest["id"]}
+
+@app.post("/catalog/register")
+def register_manifest(manifest: dict, token: str = Depends(require_auth)):
+    return store_manifest(manifest)
+
+# Manifests registered at startup, listed by path in PRELOAD_MANIFESTS and separated by commas
+for manifest_path in filter(None, os.getenv("PRELOAD_MANIFESTS", "").split(",")):
+    store_manifest(load_manifest(manifest_path.strip()))
 
 @app.get("/catalog/{manifest_id}")
 def get_manifest(manifest_id: str, token: str = Depends(require_auth)):
